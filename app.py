@@ -23,7 +23,7 @@ load_dotenv(find_dotenv())
 openai_api_key = os.environ.get("OPENAI_API_KEY")
 
 
-@app.post("/process_text")
+@app.post("/")
 async def process_text(text: str):
     # Utilize Langchain model here
 
