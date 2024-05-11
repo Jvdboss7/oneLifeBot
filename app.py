@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from dotenv import load_dotenv, find_dotenv
 
 
-app = FastAPI()
+app = FastAPI(docs_url="/")
 
 # Load environment variables from .env file
 load_dotenv(find_dotenv())
@@ -23,7 +23,7 @@ load_dotenv(find_dotenv())
 openai_api_key = os.environ.get("OPENAI_API_KEY")
 
 
-@app.post("/")
+@app.post("/processed_text")
 async def process_text(text: str):
     # Utilize Langchain model here
 
@@ -84,4 +84,4 @@ async def process_text(text: str):
     return {"response": processed_response}
 
 if __name__ == "__main__":
-    uvicorn.run(app=app, host="127.0.0.1", port=8080)
+    uvicorn.run(app=app)
