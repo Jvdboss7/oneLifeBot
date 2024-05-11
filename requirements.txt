@@ -5,7 +5,6 @@ altair==5.2.0
 annotated-types==0.6.0
 anyio==3.7.1
 asgiref==3.8.1
-asttokens @ file:///home/conda/feedstock_root/build_artifacts/asttokens_1698341106958/work
 async-timeout==4.0.3
 attrs==23.2.0
 backoff==2.2.1
