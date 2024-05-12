@@ -14,7 +14,9 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMes
 from langchain.memory import ConversationBufferMemory
 from fastapi import FastAPI,Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
+from datetime import datetime,timedelta,timezone
 import jwt
 
 # from fastapi.responses import ORJSONResponse
@@ -31,15 +33,51 @@ openai_api_key = os.environ.get("OPENAI_API_KEY")
 
 # @app.post("/processed_text",response_class=ORJSONResponse)
 SECRET_KEY = os.environ.get("SECRET_KEY")
-ALGORITHM = "HS256"
+ALGORITHM = os.environ.get("ALGORITHM")
+
+if not SECRET_KEY:
+    raise ValueError("Missing SECRET_KEY environment variable")
 
 # Define a cryptoContext for password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+
+# JWT token generation
+def create_jwt_token(data:dict):
+    to_encode = data.copy()
+    expires = datetime.now(timezone.utc) + timedelta(days=36500)
+    print(expires)
+    to_encode.update({"exp":expires.timestamp()})
+    encoded_jwt = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+    print(encoded_jwt)
+    return encoded_jwt
 
 
 
+# JWT token validation
+def decode_jwt_token(token: str):
+    try:
+        decoded_token = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return decoded_token
+    except jwt.exceptions.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.exceptions.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+# response_front_end: str
 @app.post("/processed_text")
-async def process_text(response_front_end: str):
+async def process_text(credentials: HTTPAuthorizationCredentials=Depends(HTTPBearer())):
+    print(decode_jwt_token(credentials.credentials))
+    decode_jwt_token(credentials.credentials)
     response_front_end=[{
     "_id": "6635d536ba06e0dc820074c3",
     "post": "I'm feeling really stressed and conflicted about this situation. My marriage has been difficult because of my in-laws, especially my disrespectful father-in-law. Now, there's a land investment opportunity in India, and I have the money to invest. But my husband doesn't have immediate cash, and he wants me to invest in the land, with the catch being that it would be registered in my father-in-law's name. I feel uncomfortable with this idea, especially considering our strained relationship. I want to use my hard-earned money for this investment and involve my father instead. I'm really torn about what to do."
