@@ -2,3 +2,6 @@ langchain
 openai
 fastapi
 python-dotenv
+python-multipart
+pyjwt 
+passlib
