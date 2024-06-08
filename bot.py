@@ -127,24 +127,71 @@ CHAT_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
 
 app = FastAPI(dependencies=[Depends(get_settings)])
 
+load_dotenv(find_dotenv())
+
+# @app.post("/processed_text",response_class=ORJSONResponse)
+SECRET_KEY = os.environ.get("SECRET_KEY")
+ALGORITHM = os.environ.get("ALGORITHM")
+
+# Define a session state model (optional)
+if not SECRET_KEY:
+    raise ValueError("Missing SECRET_KEY environment variable")
+
+# Define a cryptoContext for password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+
+# JWT token generation
+def create_jwt_token(data:dict):
+    to_encode = data.copy()
+    expires = datetime.now(timezone.utc) + timedelta(days=36500)
+    print(expires)
+    to_encode.update({"exp":expires.timestamp()})
+    encoded_jwt = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+    print(encoded_jwt)
+    return encoded_jwt
+
+# JWT token validation
+def decode_jwt_token(token: str):
+    try:
+        decoded_token = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return decoded_token
+    except jwt.exceptions.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.exceptions.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 streaming_conversation_chain = StreamingConversationChain(
     openai_api_key=get_settings().openai_api_key
 )
 
 
 @app.post("/chat", response_class=StreamingResponse)
-async def generate_response(data: ChatRequest) -> StreamingResponse:
+async def generate_response(data: ChatRequest,credentials: HTTPAuthorizationCredentials=Depends(HTTPBearer())) -> StreamingResponse:
     """Endpoint for chat requests.
     It uses the StreamingConversationChain instance to generate responses,
     and then sends these responses as a streaming response.
     :param data: The request data.
     """
-    return StreamingResponse(
-        streaming_conversation_chain.generate_response(
-            data.conversation_id, data.message
-        ),
-        media_type="text/event-stream",
-    )
+    user = decode_jwt_token(credentials.credentials)
+    if user:
+        return StreamingResponse(
+            streaming_conversation_chain.generate_response(
+                data.conversation_id, data.message
+            ),
+            media_type="text/event-stream",
+        )
+    else:
+        return "Invalid User Token"
 
 
 if __name__ == "__main__":
