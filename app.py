@@ -20,6 +20,9 @@ from pydantic import BaseModel
 from typing import Optional
 import jwt
 from dotenv import load_dotenv, find_dotenv
+from langchain.callbacks import AsyncIteratorCallbackHandler
+from fastapi.responses import StreamingResponse
+
 
 
 app = FastAPI(docs_url="/")
@@ -275,9 +278,8 @@ async def title_recommender(credentials: HTTPAuthorizationCredentials=Depends(HT
 
 @app.post("/chatbot")
 async def chatbot(text: str,credentials: HTTPAuthorizationCredentials=Depends(HTTPBearer())):
-
     user = decode_jwt_token(credentials.credentials)
-    if user:    
+    if user:
         chat = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo',openai_api_key=openai_api_key)
 
         # Define a template for the conversation prompt
@@ -301,7 +303,7 @@ async def chatbot(text: str,credentials: HTTPAuthorizationCredentials=Depends(HT
         7. Answer must not be greater than 2 to 3sentances to any questions asked by the user keep your answers short and crip.\
         8. upper case and lower case letters must be treated equally while generating the output, Don't Differentiate between them.\
         
-        {history}
+        
         {{input}}
                 """
             ),
