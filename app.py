@@ -5,22 +5,20 @@
 
 import re
 import os
-import json
 import uvicorn
+import logging
 from langchain.chat_models import ChatOpenAI
-from langchain.chains import LLMChain
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, \
-                             HumanMessagePromptTemplate, AIMessagePromptTemplate
-from langchain.memory import ConversationBufferMemory
+from langchain.chains import LLMChain,ConversationChain
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate,HumanMessagePromptTemplate
+from langchain.memory import ConversationBufferMemory,ConversationBufferWindowMemory
 from fastapi import FastAPI,Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from datetime import datetime,timedelta,timezone
+from pydantic import BaseModel
+from typing import Optional
 import jwt
-
-# from fastapi.responses import ORJSONResponse
-
 from dotenv import load_dotenv, find_dotenv
 
 
@@ -35,6 +33,7 @@ openai_api_key = os.environ.get("OPENAI_API_KEY")
 SECRET_KEY = os.environ.get("SECRET_KEY")
 ALGORITHM = os.environ.get("ALGORITHM")
 
+# Define a session state model (optional)
 if not SECRET_KEY:
     raise ValueError("Missing SECRET_KEY environment variable")
 
@@ -301,52 +300,41 @@ async def chatbot(text: str,credentials: HTTPAuthorizationCredentials=Depends(HT
         6. At any cost don't respond to the hateful comments just respond to them polite manner.\
         7. Answer must not be greater than 2 to 3sentances to any questions asked by the user keep your answers short and crip.\
         8. upper case and lower case letters must be treated equally while generating the output, Don't Differentiate between them.\
-
-        {chat_history}
-        {question}
+        
+        {history}
+        {{input}}
                 """
             ),
-            MessagesPlaceholder(variable_name="chat_history"),
-            HumanMessagePromptTemplate.from_template("{question}")
+            MessagesPlaceholder(variable_name='history'),
+            HumanMessagePromptTemplate.from_template("{input}")
         ]
         )
-
+        
         # Initialize ConversationBufferMemory to store conversation history
-        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-
+        # memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+        print("We are here before initializing the memory")
+        window_memory = ConversationBufferWindowMemory(memory_key="history",return_messages=True,k=12)
+ 
         # Create an instance of LLMChain with the defined chat model, prompt template, and memory
-        conversation = LLMChain(
+        print("We are here before initializing the conversationChain")
+        conversation = ConversationChain(
         llm=chat,
         prompt=prompt,
         verbose=True,
-        memory=memory
+        memory=window_memory
+
         )
 
-        # Initialize an empty list to store conversation history
-        # conversation_history = []
-
-        def predict(input_text):
-            # Create a user message with the input text
-            user_message = {"question": input_text}
-
-            # Get the response from the conversation model
-            response = conversation(user_message)
-
-            # Add user and AI messages to the conversation memory
-            memory.chat_memory.add_user_message(input_text)
-            memory.chat_memory.add_ai_message(response['text'])
-
-            # Print and return the AI's response
-            print(response['text'])
-            return response['text']
-
         # Example input for prediction
-        input_text = text
-        output = chat.predict(input_text)
-        processed_output=re.sub(r"\n\n", " ", output)
-        processed_output
-        print(processed_output)    # Return the AI's response
-        return processed_output
+        while True:
+            input_text = text
+            print("we are here before the output")
+            output = conversation.predict(input=input_text)
+            print(f"This is the conversation memoery {conversation.memory.buffer}")
+            processed_output=re.sub(r"\n\n", " ", output)
+            processed_output
+            print(processed_output)    # Return the AI'sresponse
+            return processed_output
     else:
         return "Invalid User Token"    
 
